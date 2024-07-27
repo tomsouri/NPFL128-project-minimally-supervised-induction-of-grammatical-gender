@@ -15,7 +15,6 @@ class UDDataset:
 
     class Dataset:
         def __init__(self, data_file: TextIO, max_tokens: int | None = None) -> None:
-
             # Load the data
             self._size = 0
             self.forms = []
@@ -49,6 +48,23 @@ class UDDataset:
 
         def __getitem__(self, index: int) -> str:
             return self.forms[index]
+
+        @property
+        def text(self) -> list[str]:
+            """
+            Get the unannotated text of the dataset, as a list of tokens.
+            :return: The unannotated text.
+            """
+            return self.forms
+
+        def get_unique_nouns(self) -> set[str]:
+            """
+            Extracts the set of unique nouns from the dataset.
+            :return: The set of unique nouns.
+            """
+            nouns = [form for (form, pos) in zip(self.forms, self.poss) if pos == "NOUN"]
+            noun_set = set(nouns)
+            return noun_set
 
     def __init__(self, max_tokens=None):
         for dataset_name, dataset in zip(["train-lt", "dev", "test"], ["train", "dev", "test"]):
