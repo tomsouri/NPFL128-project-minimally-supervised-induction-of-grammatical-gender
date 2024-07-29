@@ -1,8 +1,10 @@
+from typing import Sequence
+
 from evidence_modeling.frequency import Frequency
 from collections import Counter
 
 
-def get_initial_gender_frequencies(noun_set: set[str], unannotated_corpus: list[str], masc_seeds: set[str],
+def get_initial_gender_frequencies(noun_set: set[str], unannotated_corpus: Sequence[str], masc_seeds: set[str],
                                    fem_seeds: set[str]) -> dict[str, Frequency]:
     """
     For a set of nouns, compute initial frequencies, based on the given seed lists of masculine and feminine nouns.
@@ -26,4 +28,3 @@ def get_initial_gender_frequencies(noun_set: set[str], unannotated_corpus: list[
         frequencies[noun] = frequency
 
     return frequencies
-
