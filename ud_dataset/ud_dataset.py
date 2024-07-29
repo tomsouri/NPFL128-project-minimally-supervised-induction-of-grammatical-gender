@@ -1,7 +1,8 @@
-from typing import TextIO
+from typing import TextIO, Sequence
 import os
 import sys
 import urllib.request
+from collections import Counter
 
 from config import DATA_DIR
 import conllu
@@ -47,7 +48,6 @@ class UDDataset:
                     self.forms.append(form)
                     self.poss.append(pos)
                     self.genders.append(gender)
-                    print(form, pos, gender)
                     self._size += 1
                     if max_tokens is not None and self._size >= max_tokens:
                         break
@@ -72,7 +72,11 @@ class UDDataset:
             :return: The set of unique nouns.
             """
             nouns = [form for (form, pos) in zip(self.forms, self.poss) if pos == "NOUN"]
-            noun_set = set(nouns)
+
+            # Filter for errors: consider a word to be a noun only if it appears more than 4 times annotated as a NOUN.
+            counts = Counter(nouns)
+            relevant_nouns = [noun for noun in counts if counts[noun] > 4]
+            noun_set = set(relevant_nouns)
             return noun_set
 
     def __init__(self, max_tokens=None) -> None:
@@ -94,7 +98,7 @@ class UDDataset:
 
     # Evaluation infrastructure.
     @staticmethod
-    def evaluate(gold_dataset: "UDDataset.Dataset", predictions: list[Optional[Gender]]) -> EvaluationMetric:
+    def evaluate(gold_dataset: "UDDataset.Dataset", predictions: Sequence[Optional[Gender]]) -> EvaluationMetric:
         """
         Evaluate the precision and recall of given predictions on a gold dataset. Predictions on not-noun-words and
         nouns with unknown gold gender are not evaluated.
