@@ -4,10 +4,17 @@ import sys
 import urllib.request
 
 from config import DATA_DIR
+import conllu
+
+from gender import Gender
+from typing import Optional
+from dataclasses import dataclass
 
 
-def is_comment_line(line: str) -> bool:
-    return len(line) > 0 and line[0] == "#"
+@dataclass
+class EvaluationMetric:
+    precision: float
+    recall: float
 
 
 class UDDataset:
@@ -21,27 +28,29 @@ class UDDataset:
             self.poss = []
             self.genders = []
 
-            for line in data_file:
-                line = line.strip()
-                if line:
-                    if not is_comment_line(line):
-                        columns = line.split("\t")
-                        form = columns[1]
-                        pos = columns[3]
-                        if columns[4] == "_":
-                            pos = None
-                            gender = None
-                        else:
-                            gender = columns[4][2]
-                            if gender == "I":
-                                # ignore animate/inanimate distinction
-                                gender = "M"
-                        self.forms.append(form)
-                        self.poss.append(pos)
-                        self.genders.append(gender)
-                        self._size += 1
-                        if max_tokens is not None and self._size >= max_tokens:
-                            break
+            for sentence in conllu.parse_incr(data_file):
+                for token in sentence:
+                    form = token.get("form")
+                    pos = token.get("upostag")
+                    gender = None
+                    if 'feats' in token and token['feats'] is not None:
+                        feats = token['feats']
+                        if 'Gender' in feats:
+                            gender = feats['Gender']
+
+                            if gender == "Masc":
+                                gender = Gender.MASCULINE
+                            elif gender == "Fem":
+                                gender = Gender.FEMININE
+                            else:
+                                gender = Gender.OTHER
+                    self.forms.append(form)
+                    self.poss.append(pos)
+                    self.genders.append(gender)
+                    print(form, pos, gender)
+                    self._size += 1
+                    if max_tokens is not None and self._size >= max_tokens:
+                        break
 
         def __len__(self) -> int:
             return self._size
@@ -66,7 +75,7 @@ class UDDataset:
             noun_set = set(nouns)
             return noun_set
 
-    def __init__(self, max_tokens=None):
+    def __init__(self, max_tokens=None) -> None:
         for dataset_name, dataset in zip(["train-lt", "dev", "test"], ["train", "dev", "test"]):
             # for dataset_name, dataset in zip(["train-ca", "dev", "test"], ["train", "dev", "test"]):
             filename = f"cs_pdt-ud-{dataset_name}.conllu"
@@ -85,30 +94,35 @@ class UDDataset:
 
     # Evaluation infrastructure.
     @staticmethod
-    def evaluate(gold_dataset: "UDDataset.Dataset", predictions: list[str]) -> float:
+    def evaluate(gold_dataset: "UDDataset.Dataset", predictions: list[Optional[Gender]]) -> EvaluationMetric:
+        """
+        Evaluate the precision and recall of given predictions on a gold dataset. Predictions on not-noun-words and
+        nouns with unknown gold gender are not evaluated.
+        :param gold_dataset: The dataset for comparison.
+        :param predictions: List of predicted genders.
+        :return: Evaluation metric containing the precision and recall values.
+        """
         gold_genders = gold_dataset.genders
-        gold_poss = gold_dataset.poss
+        poss = gold_dataset.poss
 
         if len(predictions) != len(gold_genders):
             raise RuntimeError("The predictions contain different number of tokens than gold data: {} vs {}".format(
                 len(predictions), len(gold_genders)))
 
-        correct, total = 0, 0
+        correct, total, predicted_sth = 0, 0, 0
 
-        for line, gold_gender, gold_pos in zip(predictions, gold_genders, gold_poss):
+        for prediction, gold_gender, pos in zip(predictions, gold_genders, poss):
 
-            if gold_pos != "NOUN":
-                # not noun, no need to evaluate
+            if pos != "NOUN" or gold_gender is None:
+                # not noun or unknown gold gender, no need to evaluate
                 continue
 
-            prediction = line.rstrip("\n")
             total += 1
-            if prediction == gold_gender:
-                correct += 1
+            if prediction is not None:
+                predicted_sth += 1
+                if prediction == gold_gender:
+                    correct += 1
 
-        return correct / total
-
-    @staticmethod
-    def evaluate_file(gold_dataset: "UDDataset.Dataset", predictions_file: TextIO) -> float:
-        predictions = predictions_file.readlines()
-        return UDDataset.evaluate(gold_dataset, predictions)
+        precision = correct / predicted_sth
+        recall = predicted_sth / total
+        return EvaluationMetric(precision=precision, recall=recall)
