@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from enum import Enum, auto
 from typing import Optional, Sequence
 
-SUFFIX_LENGTH = 3
+SUFFIX_LENGTH = 1
 
 
 class ContextType(Enum):
