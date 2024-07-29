@@ -37,6 +37,20 @@ def is_context_gender_specific(context_frequency: Frequency, fraction_to_allow: 
     else:
         return None
 
+    # if masc > fem:
+    #     return Gender.MASCULINE
+    # elif fem > masc:
+    #     return Gender.FEMININE
+    # else:
+    #     return None
+    #
+    # if masc > 0 and fem == 0:
+    #     return Gender.MASCULINE
+    # elif fem > 0 and masc == 0:
+    #     return Gender.FEMININE
+    # else:
+    #     return None
+
 
 def update_frequencies_by_bootstrapping(masc_seeds: set[str], fem_seeds: set[str], all_nouns: set[str],
                                         unannotated_corpus: Sequence[str],
@@ -112,7 +126,9 @@ def update_frequencies_by_bootstrapping(masc_seeds: set[str], fem_seeds: set[str
                 break
 
         print(f"Newly added {len(new_masc_contexts)} contexts to MASC")
+        print(new_masc_contexts)
         print(f"Newly added {len(new_fem_contexts)} contexts to FEM")
+        print(new_fem_contexts)
 
         # Now, go through all the words and if their context has been added to some gender, update their counts.
         all_new_contexts |= new_masc_contexts | new_fem_contexts
