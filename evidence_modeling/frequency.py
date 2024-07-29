@@ -2,9 +2,25 @@ from dataclasses import dataclass
 
 
 @dataclass
-class Distribution:
+class BinaryDistribution:
+    """
+    For modeling the probabilistic distribution.
+    """
     masc: float
     fem: float
+
+
+@dataclass
+class Distribution:
+    """
+    For modeling the probabilistic distribution in the morphological trie.
+    """
+    quest: float
+    masc: float
+    fem: float
+
+    def to_binary_distribution(self) -> BinaryDistribution:
+        return BinaryDistribution(masc=self.masc / (self.masc + self.fem), fem=self.fem / (self.masc + self.fem))
 
 
 @dataclass
@@ -13,9 +29,9 @@ class Frequency:
     masc: int
     fem: int
 
-    def get_distribution(self):
-        return Distribution(masc=self.masc / (self.masc + self.fem), fem=self.fem / (self.masc + self.fem))
-
     @property
-    def total_count(self):
+    def total(self) -> int:
         return self.quest + self.masc + self.fem
+
+    def to_distribution(self) -> Distribution:
+        return Distribution(quest=self.quest / self.total, masc=self.masc / self.total, fem=self.fem / self.total)
