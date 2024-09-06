@@ -85,9 +85,8 @@ class UDDataset:
             filename = f"cs_pdt-ud-{dataset_name}.conllu"
             path = DATA_DIR / filename
             if not os.path.exists(path):
-                print("Downloading dataset {}...".format(filename), file=sys.stderr)
-                urllib.request.urlretrieve(
-                    "{}/{}".format(self._URL, filename), filename="{}.tmp".format(path))
+                print(f"Downloading dataset {filename}...", file=sys.stderr)
+                urllib.request.urlretrieve(f"{self._URL}/{filename}", filename=f"{path}.tmp")
                 os.rename("{}.tmp".format(path), path)
             with open(path, "r") as dataset_file:
                 setattr(self, dataset, self.Dataset(dataset_file, max_tokens=max_tokens))
