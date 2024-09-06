@@ -192,7 +192,8 @@ def update_frequencies_by_bootstrapping(masc_seeds: set[str], fem_seeds: set[str
     :param all_nouns: Set of all strings from the language to be considered nouns.
     :param unannotated_corpus: Corpus consisting of tokens, unannotated for any linguistic information.
     :param original_frequencies: The original frequency counts before bootstrapping. The given frequencies are expected
-    to correspond to the counts in the given unannotated corpus and to the sets of feminine/masculine seeds.
+    to correspond to the counts in the given unannotated corpus and to the sets of feminine/masculine seeds. The
+    original frequencies are not modified, new frequencies are returned as the third return value.
     :return: all masculine nouns, all feminine nouns and updated frequencies.
     """
     all_masc_nouns = masc_seeds.copy()
