@@ -52,6 +52,135 @@ def is_context_gender_specific(context_frequency: Frequency, fraction_to_allow: 
     #     return None
 
 
+def extract_relevant_contexts(
+        updated_contexts: set[Context],
+        context_frequencies: dict[Context, Frequency]) -> tuple[set[Context], set[Context]]:
+    """
+    Extract relevant contexts by iteratively descreasing the treshold until some contexts are considered relevant.
+    :param updated_contexts: Contexts that have been updated in the last run.
+    :param context_frequencies:
+    :return:
+    """
+    new_masc_contexts = set()
+    new_fem_contexts = set()
+
+    # Iteratively decrease the weight determining which contexts will be considered relevant, until at least one
+    # relevant context is found.
+    fraction_to_allow = 0.5
+    added = False
+    while not added:
+        for context in updated_contexts:
+            gender = is_context_gender_specific(context_frequencies[context], fraction_to_allow=fraction_to_allow)
+            if gender == Gender.MASCULINE:
+                new_masc_contexts.add(context)
+                added = True
+            elif gender == Gender.FEMININE:
+                new_fem_contexts.add(context)
+                added = True
+
+        # decrease the weight a little bit
+        fraction_to_allow /= 1.2
+
+        # stop if too many iterations
+        if fraction_to_allow < 0.1:
+            break
+
+    print(f"Newly added {len(new_masc_contexts)} contexts to MASC")
+    print(new_masc_contexts)
+    print(f"Newly added {len(new_fem_contexts)} contexts to FEM")
+    print(new_fem_contexts)
+
+    return new_masc_contexts, new_fem_contexts
+
+
+def update_frequencies_and_get_updated_contexts(
+        context_frequencies: dict[Context, Frequency],
+        all_new_nouns: set[str],
+        new_masc_nouns: set[str]
+) -> set[Context]:
+    """
+    Go through the corpus, and on every newly added noun update the counts of the corresponding contexts. Modifies the
+    given context frequencies dictionary.
+    :param new_masc_nouns:
+    :param all_new_nouns:
+    :param context_frequencies:
+    :return: The set of updated contexts.
+    """
+
+    updated_contexts = set()
+    for current_word, context in iterate_over_words_and_contexts(corpus=unannotated_corpus,
+                                                                 context_types=ALLOWED_CONTEXT_MODELS):
+        if current_word in all_new_nouns:
+            context_frequency = context_frequencies[context]
+            context_frequency.quest -= 1
+            if current_word in new_masc_nouns:
+                context_frequency.masc += 1
+            else:
+                context_frequency.fem += 1
+            updated_contexts.add(context)
+
+    return updated_contexts
+
+
+def extract_relevant_masc_fem_nouns(updated_words: set[str], noun_frequencies: dict[str, Frequency]) -> tuple[
+    set[str], set[str]]:
+    """
+    Extract relevant masculine and feminine nouns.
+    :param updated_words:
+    :param noun_frequencies:
+    :return:
+    """
+    new_masc_nouns = set()
+    new_fem_nouns = set()
+
+    fraction_to_allow = 0.5
+    while not new_fem_nouns | new_masc_nouns:
+        for word in updated_words:
+            gender = is_context_gender_specific(noun_frequencies[word], fraction_to_allow=fraction_to_allow)
+            if gender == Gender.MASCULINE:
+                new_masc_nouns.add(word)
+            elif gender == Gender.FEMININE:
+                new_fem_nouns.add(word)
+
+        fraction_to_allow /= 1.2
+
+        # stop if too many iterations
+        if fraction_to_allow < 0.1:
+            break
+
+    return new_masc_nouns, new_fem_nouns
+
+def update_noun_frequencies_and_get_updated_words(
+        unannotated_corpus: Sequence[str],
+        all_new_contexts: set[Context],
+        all_nouns: set[str],
+        noun_frequencies: dict[str, Frequency],
+        new_masc_contexts: set[Context]
+        ) -> set[str]:
+    """
+    Updates the noun frequencies, based on new contexts.
+    :param unannotated_corpus: Sequence of words, unannotated corpus.
+    :param all_new_contexts: All new contexts (fem and masc)
+    :param all_nouns: Set of all tokens considered to be nouns.
+    :param noun_frequencies: Is modified in place.
+    :param new_masc_contexts: New masc contexts.
+    :return: set of updated words
+    """
+    updated_words = set()
+    for word, context in iterate_over_words_and_contexts(corpus=unannotated_corpus,
+                                                         context_types=ALLOWED_CONTEXT_MODELS):
+        if context in all_new_contexts and word in all_nouns:
+            noun_frequency = noun_frequencies[word]
+            noun_frequency.quest -= 1
+            if context in new_masc_contexts:
+                noun_frequency.masc += 1
+            else:
+                noun_frequency.fem += 1
+            updated_words.add(word)
+
+    return updated_words
+
+
 def update_frequencies_by_bootstrapping(masc_seeds: set[str], fem_seeds: set[str], all_nouns: set[str],
                                         unannotated_corpus: Sequence[str],
                                         original_frequencies: dict[str, Frequency]) -> \
@@ -85,87 +214,32 @@ def update_frequencies_by_bootstrapping(masc_seeds: set[str], fem_seeds: set[str
         print(f"Bootstrapping: iteration no. {iteration_no} is running...")
         iteration_no += 1
 
-        updated_contexts = set()
         all_new_nouns = new_masc_nouns | new_fem_nouns
 
-        # Go through the corpus, and on every newly added noun update the counts of the corresponding contexts
-        for current_word, context in iterate_over_words_and_contexts(corpus=unannotated_corpus,
-                                                                     context_types=ALLOWED_CONTEXT_MODELS):
-            if current_word in all_new_nouns:
-                context_frequency = context_frequencies[context]
-                context_frequency.quest -= 1
-                if current_word in new_masc_nouns:
-                    context_frequency.masc += 1
-                else:
-                    context_frequency.fem += 1
-                updated_contexts.add(context)
+        updated_contexts = update_frequencies_and_get_updated_contexts(context_frequencies=context_frequencies,
+                                                                       all_new_nouns=all_new_nouns,
+                                                                       new_masc_nouns=new_masc_nouns)
 
         # Filter for relevant contexts:
-        new_masc_contexts = set()
-        new_fem_contexts = set()
-
-        # Iteratively decrease the weight determining which contexts will be considered relevant, until at least one
-        # relevant context is found.
-        fraction_to_allow = 0.5
-        added = False
-        while not added:
-            for context in updated_contexts:
-                gender = is_context_gender_specific(context_frequencies[context], fraction_to_allow=fraction_to_allow)
-                if gender == Gender.MASCULINE:
-                    new_masc_contexts.add(context)
-                    added = True
-                elif gender == Gender.FEMININE:
-                    new_fem_contexts.add(context)
-                    added = True
-
-            # decrease the weight a little bit
-            fraction_to_allow /= 1.2
-
-            # stop if too many iterations
-            if fraction_to_allow < 0.1:
-                break
-
-        print(f"Newly added {len(new_masc_contexts)} contexts to MASC")
-        print(new_masc_contexts)
-        print(f"Newly added {len(new_fem_contexts)} contexts to FEM")
-        print(new_fem_contexts)
+        new_masc_contexts, new_fem_contexts = extract_relevant_contexts(updated_contexts=updated_contexts,
+                                                                        context_frequencies=context_frequencies)
 
         # Now, go through all the words and if their context has been added to some gender, update their counts.
         all_new_contexts |= new_masc_contexts | new_fem_contexts
-        updated_words = set()
 
-        for word, context in iterate_over_words_and_contexts(corpus=unannotated_corpus,
-                                                             context_types=ALLOWED_CONTEXT_MODELS):
-            if context in all_new_contexts and word in all_nouns:
-                noun_frequency = noun_frequencies[word]
-                noun_frequency.quest -= 1
-                if context in new_masc_contexts:
-                    noun_frequency.masc += 1
-                else:
-                    noun_frequency.fem += 1
-                updated_words.add(word)
+        updated_words = update_noun_frequencies_and_get_updated_words(
+            unannotated_corpus=unannotated_corpus,
+            all_new_contexts=all_new_contexts,
+            all_nouns=all_nouns,
+            noun_frequencies=noun_frequencies,
+            new_masc_contexts=new_masc_contexts
+        )
 
         # from the set of updated words, remove those that were already decided
         updated_words -= all_fem_nouns | all_masc_nouns
 
-        # Now, filter for relevant nouns
-        new_masc_nouns = set()
-        new_fem_nouns = set()
-
-        fraction_to_allow = 0.5
-        while not new_fem_nouns | new_masc_nouns:
-            for word in updated_words:
-                gender = is_context_gender_specific(noun_frequencies[word], fraction_to_allow=fraction_to_allow)
-                if gender == Gender.MASCULINE:
-                    new_masc_nouns.add(word)
-                elif gender == Gender.FEMININE:
-                    new_fem_nouns.add(word)
-
-            fraction_to_allow /= 1.2
-
-            # stop if too many iterations
-            if fraction_to_allow < 0.1:
-                break
+        new_masc_nouns, new_fem_nouns = extract_relevant_masc_fem_nouns(updated_words=updated_words,
+                                                                        noun_frequencies=noun_frequencies)
 
         # update lists of all fem/masc nouns
         all_fem_nouns |= new_fem_nouns
