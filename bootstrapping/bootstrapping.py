@@ -10,6 +10,63 @@ ALLOWED_CONTEXT_MODELS = [ContextType.LEFT_WHOLE_WORD, ContextType.RIGHT_WHOLE_W
                           ContextType.LEFT_SUFFIX, ContextType.RIGHT_SUFFIX, ContextType.BILATERAL_SUFFIX]
 
 
+def is_context_gender_specific_strict(masc: int, fem: int, quest: int, fraction_to_allow: float) -> Optional[Gender]:
+    """
+    Decide whether a context is gender specific, based on its fem, masc and quest frequencies, with strict condition
+    (described by fem > masc + quest/2, resp. masc > fem + quest/2, where `/2` is replaced by a custom fraction to
+    allow)
+    :param masc: Count of masc occurrences.
+    :param fem: Count of fem occurrences.
+    :param quest: Count of quest occurrences.
+    :param fraction_to_allow: Custom fraction to allow.
+    :return: Gender decided based on the counts.
+    """
+    if masc > quest * fraction_to_allow + fem:
+        return Gender.MASCULINE
+    elif fem > quest * fraction_to_allow + masc:
+        return Gender.FEMININE
+    else:
+        return None
+
+
+def is_context_gender_specific_relaxed(masc: int, fem: int, quest: int, fraction_to_allow: float) -> Optional[
+    Gender]:
+    """
+    Decide whether a context is gender specific, based on its fem, masc and quest frequencies, with a relaxed condition
+    (described by fem > 0 and masc = 0 (or fem > 0 and masc = 0))
+    :param masc: Count of masc occurrences.
+    :param fem: Count of fem occurrences.
+    :param quest: Count of quest occurrences.
+    :param fraction_to_allow: Custom fraction to allow, is ignored
+    :return: Gender decided based on the counts.
+    """
+    if masc > 0 and fem == 0:
+        return Gender.MASCULINE
+    elif fem > 0 and masc == 0:
+        return Gender.FEMININE
+    else:
+        return None
+
+
+def is_context_gender_specific_simple(masc: int, fem: int, quest: int, fraction_to_allow: float) -> Optional[
+    Gender]:
+    """
+    Decide whether a context is gender specific, based on its fem, masc and quest frequencies, with a simple condition
+    (described by `fem > masc`).
+    :param masc: Count of masc occurrences.
+    :param fem: Count of fem occurrences.
+    :param quest: Count of quest occurrences.
+    :param fraction_to_allow: Custom fraction to allow, is ignored
+    :return: Gender decided based on the counts.
+    """
+    if masc > fem:
+        return Gender.MASCULINE
+    elif fem > masc:
+        return Gender.FEMININE
+    else:
+        return None
+
+
 def is_context_gender_specific(context_frequency: Frequency, fraction_to_allow: float = 0.5) -> Optional[Gender]:
     """
     Defines the condition for filtering, whether the context absolute counts are relevant enough to decide whether the
@@ -18,38 +75,15 @@ def is_context_gender_specific(context_frequency: Frequency, fraction_to_allow: 
     :param context_frequency: Frequency containing absolute counts of the context.
     :return: Specific gender if the counts are relevant enough, or None if we cannot decide.
     """
-
-    # TODO: here are multiple possibilities on the conditions:
-    # 1. fem > masc + quest/2, resp. masc > fem + quest/2
-    # 2. fem > 0 and masc = 0 (or fem > n and masc = 0)
-    # 3. fem > masc
-
-    # We try option number 1, with adjustable weight for the fraction of questionable
-
     masc = context_frequency.masc
     fem = context_frequency.fem
     quest = context_frequency.quest
 
-    if masc > quest * fraction_to_allow + fem:
-        return Gender.MASCULINE
-    elif fem > quest * fraction_to_allow + masc:
-        return Gender.FEMININE
-    else:
-        return None
-
-    # if masc > fem:
-    #     return Gender.MASCULINE
-    # elif fem > masc:
-    #     return Gender.FEMININE
-    # else:
-    #     return None
-    #
-    # if masc > 0 and fem == 0:
-    #     return Gender.MASCULINE
-    # elif fem > 0 and masc == 0:
-    #     return Gender.FEMININE
-    # else:
-    #     return None
+    # There are multiple possibilities on the conditions here, described by the functions `is_context_gender_specific-`:
+    # `-simple`
+    # `-relaxed`
+    # `-strict`
+    return is_context_gender_specific_strict(masc=masc, fem=fem, quest=quest, fraction_to_allow=fraction_to_allow)
 
 
 def extract_relevant_contexts(
@@ -150,13 +184,14 @@ def extract_relevant_masc_fem_nouns(updated_words: set[str], noun_frequencies: d
 
     return new_masc_nouns, new_fem_nouns
 
+
 def update_noun_frequencies_and_get_updated_words(
         unannotated_corpus: Sequence[str],
         all_new_contexts: set[Context],
         all_nouns: set[str],
         noun_frequencies: dict[str, Frequency],
         new_masc_contexts: set[Context]
-        ) -> set[str]:
+) -> set[str]:
     """
     Updates the noun frequencies, based on new contexts.
     :param unannotated_corpus: Sequence of words, unannotated corpus.
