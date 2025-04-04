@@ -1,0 +1,8 @@
+Total number of nouns in the language: 5640
+EvaluationMetric(precision=1.0, recall=0.001614162978391044)
+
+Predictions by chance:
+Predict all fem:
+EvaluationMetric(precision=0.38708669617287167, recall=1.0)
+Predict all masc:
+EvaluationMetric(precision=0.44264514449362147, recall=1.0)
